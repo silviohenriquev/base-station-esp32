@@ -26,18 +26,23 @@ void setup(){
 
 void loop(){
     if(lora.updatePacket() == msgType::SENSORS_DATA){
-        //lora.printSensorsData(lora.getSensorsData());
+        lora.printSensorsData(lora.getSensorsData());
         postData(lora.getSensorsData());
+        lora.blink(100);
     }
     
 }
 
 void wifiConnect(){
+    pinMode(2, OUTPUT);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     Serial.print("Connecting to Wi-Fi");
     while (WiFi.status() != WL_CONNECTED)
     {
         Serial.print(".");
+        digitalWrite(2, HIGH);
+        delay(300);
+        digitalWrite(2, LOW);
         delay(300);
     }
     Serial.println();
@@ -59,7 +64,9 @@ void firebaseInit(){
 void postData(SensorData data){
     String path = "/database/";
     path += String(data.id);
-    String send = "{\"date\": ";
+    String send = "{\"id\": ";
+    send += data.id;
+    send += ", \"date\": ";
     send += data.date;
     send += ", \"irradiance\": ";
     send += data.irradiance;
@@ -72,5 +79,7 @@ void postData(SensorData data){
     send += "}";
     Serial.println(send);
     json.setJsonData(send);
-    Firebase.pushJSON(firebaseData, path, json);
+    if(data.id == 1){
+        Firebase.pushJSON(firebaseData, path, json);
+    } 
 }
