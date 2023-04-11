@@ -1,0 +1,6 @@
+#define FIREBASE_HOST "https://irradiancedata-pibic-default-rtdb.firebaseio.com/"
+#define FIREBASE_AUTH "KLAL4zr496rXAfQhrNIy5evDZImXPwA87HoOHN4U"
+//#define WIFI_SSID "SOLAR1"
+//#define WIFI_PASSWORD "f@esolar"
+#define WIFI_SSID "Maria Viana"
+#define WIFI_PASSWORD "lourdes505"
