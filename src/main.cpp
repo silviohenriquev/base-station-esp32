@@ -12,6 +12,9 @@ LoRaE220Communication lora(&Serial2, 15, 21, 19, DeviceFunction::base_station);
 void wifiConnect();
 void firebaseInit();
 void postData(SensorData);
+void postLastData(SensorData);
+
+int restart;
 
 void setup(){
     Serial.begin(9600);
@@ -25,11 +28,19 @@ void setup(){
 }
 
 void loop(){
+    restart = Firebase.getInt(firebaseData,"restart/");
+    Serial.print("Restart:  ");
+    Serial.println(restart);
+    if(restart == 0){
+        Firebase.setInt(firebaseData, "restart/", 2);
+        ESP.restart();
+    } 
+        
     if(lora.updatePacket() == msgType::SENSORS_DATA){
         lora.printSensorsData(lora.getSensorsData());
         postData(lora.getSensorsData());
         lora.blink(100);
-    }
+    }    
     
 }
 
@@ -81,5 +92,30 @@ void postData(SensorData data){
     json.setJsonData(send);
     if(data.id == 1){
         Firebase.pushJSON(firebaseData, path, json);
+        postLastData(data);
+    } 
+}
+
+void postLastData(SensorData data){
+    String path = "/database/";
+    path += String(data.id);
+    path += "/lastData";
+    String send = "{\"id\": ";
+    send += data.id;
+    send += ", \"date\": ";
+    send += data.date;
+    send += ", \"irradiance\": ";
+    send += data.irradiance;
+    send += ", \"tempExternal\": ";
+    send += data.tempExternal;
+    send += ", \"tempInternal\": ";
+    send += data.tempInternal;
+    send += ", \"tempCell\": ";
+    send += data.tempCell;
+    send += "}";
+    //Serial.println(send);
+    json.setJsonData(send);
+    if(data.id == 1){
+        Firebase.setJSON(firebaseData, path, json);
     } 
 }
