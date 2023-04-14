@@ -1,24 +1,28 @@
 
 /**
  * Created by K. Suwatchai (Mobizt)
- * 
- * Email: k_suwatchai@hotmail.com
- * 
- * Github: https://github.com/mobizt/Firebase-ESP8266
- * 
- * Copyright (c) 2022 mobizt
  *
-*/
+ * Email: k_suwatchai@hotmail.com
+ *
+ * Github: https://github.com/mobizt/Firebase-ESP8266
+ *
+ * Copyright (c) 2023 mobizt
+ *
+ */
 
 /** This example will show how to send the reset password link to user Email.
- * 
-*/
+ *
+ */
 
+#include <Arduino.h>
 #if defined(ESP32)
 #include <WiFi.h>
 #include <FirebaseESP32.h>
 #elif defined(ESP8266)
 #include <ESP8266WiFi.h>
+#include <FirebaseESP8266.h>
+#elif defined(ARDUINO_RASPBERRY_PI_PICO_W)
+#include <WiFi.h>
 #include <FirebaseESP8266.h>
 #endif
 
@@ -27,15 +31,15 @@
 #define WIFI_PASSWORD "WIFI_PASSWORD"
 
 /** 2. Define the API key
- * 
- * The API key can be obtained since you created the project and set up 
+ *
+ * The API key can be obtained since you created the project and set up
  * the Authentication in Firebase console.
- * 
- * You may need to enable the Identity provider at https://console.cloud.google.com/customer-identity/providers 
+ *
+ * You may need to enable the Identity provider at https://console.cloud.google.com/customer-identity/providers
  * Select your project, click at ENABLE IDENTITY PLATFORM button.
  * The API key also available by click at the link APPLICATION SETUP DETAILS.
- * 
-*/
+ *
+ */
 #define API_KEY "API_KEY"
 
 /* 3. Define the user Email to reset the password */
@@ -75,7 +79,6 @@ void setup()
     Firebase.reconnectWiFi(true);
 
     Serial.printf("Send Email reset password link... %s\n", Firebase.sendResetPassword(&config, USER_EMAIL) ? "ok" : config.signer.resetPswError.message.c_str());
-
 }
 
 void loop()

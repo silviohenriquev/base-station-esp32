@@ -1,15 +1,20 @@
+#include "Firebase_Client_Version.h"
+#if !FIREBASE_CLIENT_VERSION_CHECK(40309)
+#error "Mixed versions compilation."
+#endif
+
 /**
- * Google's Firebase Data class, FB_Session.h version 1.2.19
+ * Google's Firebase Data class, FB_Session.h version 1.3.7
  *
- * This library supports Espressif ESP8266 and ESP32
+ * This library supports Espressif ESP8266, ESP32 and RP2040 Pico
  *
- * Created March 1, 2022
+ * Created April 5, 2023
  *
  * This work is a part of Firebase ESP Client library
- * Copyright (c) 2022 K. Suwatchai (Mobizt)
+ * Copyright (c) 2023 K. Suwatchai (Mobizt)
  *
  * The MIT License (MIT)
- * Copyright (c) 2022 K. Suwatchai (Mobizt)
+ * Copyright (c) 2023 K. Suwatchai (Mobizt)
  *
  *
  * Permission is hereby granted, free of charge, to any person returning a copy of
@@ -30,11 +35,12 @@
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "FirebaseFS.h"
-
 #ifndef FIREBASE_SESSION_H
 #define FIREBASE_SESSION_H
+
 #include <Arduino.h>
+#include "mbfs/MB_MCU.h"
+#include "FirebaseFS.h"
 #include "FB_Utils.h"
 
 #include "rtdb/stream/FB_Stream.h"
@@ -43,6 +49,18 @@
 #include "rtdb/QueueManager.h"
 
 #include "signer/Signer.h"
+
+#if defined(ARDUINO_NANO_RP2040_CONNECT) || defined(ARDUINO_ARCH_SAMD)
+#if __has_include(<WiFiNINA.h>)
+#include <WiFiNINA.h>
+#elif __has_include(<WiFi101.h>)
+#include <WiFi101.h>
+#endif
+#endif
+/**
+ * Simple Queue implemented in this library is for error retry only.
+ * Other QueueTask management e.g., FreeRTOS Queue is not necessary.
+ */
 
 using namespace mb_string;
 
@@ -132,7 +150,10 @@ public:
    * @param click_action The URL or intent to accept click event on the notification message.
    */
   template <typename T1 = const char *, typename T2 = const char *, typename T3 = const char *, typename T4 = const char *>
-  void setNotifyMessage(T1 title, T2 body, T3 icon, T4 click_action) { mSetNotifyMessage(toStringPtr(title), toStringPtr(body), toStringPtr(icon), toStringPtr(click_action)); }
+  void setNotifyMessage(T1 title, T2 body, T3 icon, T4 click_action)
+  {
+    mSetNotifyMessage(toStringPtr(title), toStringPtr(body), toStringPtr(icon), toStringPtr(click_action));
+  }
 
   /** add the custom key/value in the notify message type information.
    *
@@ -233,17 +254,13 @@ private:
 
   void mSetTopic(MB_StringPtr topic);
 
-  bool prepareUtil();
-
   MB_String result;
   MB_String raw;
   MB_String idTokens;
   int _ttl = -1;
   uint16_t _index = 0;
   uint16_t _port = FIREBASE_PORT;
-  UtilsClass *ut = nullptr;
   SPI_ETH_Module *_spi_ethernet_module = NULL;
-  bool intUt = false;
 };
 
 #endif
@@ -293,28 +310,42 @@ public:
   typedef void (*QueueInfoCallback)(QueueInfo);
 #endif
 
+#ifdef ENABLE_FIRESTORE
+  typedef void (*FirestoreBatchOperationsCallback)(const char *);
+#endif
+
   FirebaseData();
   ~FirebaseData();
 
   /** Assign external Arduino Client.
    *
-   * @param client The pointer to Arduino Client derived class e.g. WiFiClient, WiFiClientSecure, EthernetClient or GSMClient.
+   * @param client The pointer to Arduino Client derived class of SSL Client.
    */
   FirebaseData(Client *client);
 
   /** Assign external Arduino Client.
    *
-   * @param client The pointer to Arduino Client derived class e.g. WiFiClient, WiFiClientSecure, EthernetClient or GSMClient.
+   * @param client The pointer to Arduino Client derived class of SSL Client.
    */
   void setExternalClient(Client *client);
 
   /** Assign the callback functions required for external Client usage.
    *
+   * @param networkConnectionCB The function that handles the network connection.
+   * @param networkStatusCB The function that handle the network connection status acknowledgement.
+   */
+  void setExternalClientCallbacks(FB_NetworkConnectionRequestCallback networkConnectionCB,
+                                  FB_NetworkStatusRequestCallback networkStatusCB);
+
+  /** Assign the callback functions required for external Client usage (deprecated).
+   *
    * @param tcpConnectionCB The function that handles the server connection.
    * @param networkConnectionCB The function that handles the network connection.
    * @param networkStatusCB The function that handle the network connection status acknowledgement.
    */
-  void setExternalClientCallbacks(FB_TCPConnectionRequestCallback tcpConnectionCB, FB_NetworkConnectionRequestCallback networkConnectionCB, FB_NetworkStatusRequestCallback networkStatusCB);
+  void setExternalClientCallbacks(FB_TCPConnectionRequestCallback tcpConnectionCB,
+                                  FB_NetworkConnectionRequestCallback networkConnectionCB,
+                                  FB_NetworkStatusRequestCallback networkStatusCB);
 
   /** Set the network status acknowledgement.
    *
@@ -322,7 +353,7 @@ public:
    */
   void setNetworkStatus(bool status);
 
-#if defined(ESP8266)
+#if defined(ESP8266) || defined(MB_ARDUINO_PICO)
   /** Set the receive and transmit buffer memory size for secured mode BearSSL WiFi client.
    *
    * @param rx The number of bytes for receive buffer memory for secured mode BearSSL (512 is minimum, 16384 is maximum).
@@ -362,7 +393,7 @@ public:
   bool isPause();
 #endif
 
-#if (defined(ESP32) || defined(ESP8266)) && !defined(FB_ENABLE_EXTERNAL_CLIENT)
+#if (defined(ESP32) || defined(ESP8266) || defined(MB_ARDUINO_PICO)) && !defined(FB_ENABLE_EXTERNAL_CLIENT)
   /** Get a WiFi client instance.
    *
    * @return WiFi client instance.
@@ -370,11 +401,16 @@ public:
   WiFiClientSecure *getWiFiClient();
 #endif
 
-  /** Close the keep-alive connection of the internal WiFi client.
+  /** Close the keep-alive connection of the internal SSL client.
    *
-   * @note This will release the memory used by internal WiFi client.
+   * @note This will release the memory used by internal SSL client.
    */
   void stopWiFiClient();
+
+  /** Close the internal flash temporary file.
+   *
+   */
+  void closeFile();
 
   /** Get the data type of payload returned from the server (RTDB only).
    *
@@ -491,6 +527,15 @@ public:
    * @return The error description string (String object).
    */
   String errorReason();
+
+  /** Get the error code from the process.
+   *
+   * @return The error code (int).
+   * 
+   * See src/FB_Error.h
+   * 
+   */
+  int errorCode();
 
   /** Return the integer data of server returned payload (RTDB only).
    *
@@ -620,11 +665,13 @@ public:
     if (session.rtdb.raw.length() > 0)
     {
       if (session.rtdb.resp_data_type == fb_esp_data_type::d_boolean)
-        mSetResBool(strcmp(session.rtdb.raw.c_str(), num2Str(true, -1)) == 0);
-      else if (session.rtdb.resp_data_type == fb_esp_data_type::d_integer || session.rtdb.resp_data_type == fb_esp_data_type::d_float || session.rtdb.resp_data_type == fb_esp_data_type::d_double)
+        mSetBoolValue(strcmp(session.rtdb.raw.c_str(), num2Str(true, -1)) == 0);
+      else if (session.rtdb.resp_data_type == fb_esp_data_type::d_integer ||
+               session.rtdb.resp_data_type == fb_esp_data_type::d_float ||
+               session.rtdb.resp_data_type == fb_esp_data_type::d_double)
       {
-        mSetResInt(session.rtdb.raw.c_str());
-        mSetResFloat(session.rtdb.raw.c_str());
+        mSetIntValue(session.rtdb.raw.c_str());
+        mSetFloatValue(session.rtdb.raw.c_str());
       }
     }
 
@@ -731,18 +778,19 @@ public:
     return session.rtdb.blob;
   }
 
-#if defined(MBFS_FLASH_FS)
+#if defined(MBFS_FLASH_FS) && defined(ENABLE_RTDB)
   template <typename T>
   auto to() -> typename enable_if<is_same<T, fs::File>::value, fs::File>::type
   {
-    if (session.rtdb.resp_data_type == fb_esp_data_type::d_file && init())
+    if (session.rtdb.resp_data_type == fb_esp_data_type::d_file)
     {
-      int ret = ut->mbfs->open(pgm2Str(fb_esp_pgm_str_184), mbfs_type mem_storage_type_flash, mb_fs_open_mode_read);
+      int ret = Signer.mbfs->open(pgm2Str(fb_esp_rtdb_pgm_str_10 /* "/fb_bin_0.tmp" */),
+                                  mbfs_type mem_storage_type_flash, mb_fs_open_mode_read);
       if (ret < 0)
         session.response.code = ret;
     }
 
-    return ut->mbfs->getFlashFile();
+    return Signer.mbfs->getFlashFile();
   }
 #endif
 
@@ -875,6 +923,8 @@ public:
 #endif
 
 private:
+  FB_ResponseCallback _responseCallback = NULL;
+
 #ifdef ENABLE_RTDB
   StreamEventCallback _dataAvailableCallback = NULL;
   MultiPathStreamEventCallback _multiPathDataCallback = NULL;
@@ -887,13 +937,11 @@ private:
 #endif
 #endif
 
-  UtilsClass *ut = nullptr;
-  MB_FS *mbfs = nullptr;
   bool intCfg = false;
   unsigned long last_reconnect_millis = 0;
   uint16_t reconnect_tmo = 10 * 1000;
-  uint32_t so_addr = 0;
-  uint32_t queue_addr = 0;
+  uint32_t sessionPtr = 0;
+  uint32_t queueSessionPtr = 0;
 
 #ifdef ENABLE_RTDB
   QueueManager _qMan;
@@ -933,6 +981,40 @@ private:
 
   void closeSession();
   bool handleStreamRead();
+#if defined(ENABLE_GC_STORAGE)
+  void createResumableTask(struct fb_gcs_upload_resumable_task_info_t &ruTask, size_t fileSize,
+                           const MB_String &location, const MB_String &local, const MB_String &remote,
+                           fb_esp_mem_storage_type type, fb_esp_gcs_request_type reqType);
+#endif
+  bool waitResponse(struct fb_esp_tcp_response_handler_t &tcpHandler);
+  bool isConnected(unsigned long &dataTime);
+  void waitRxReady();
+  bool readPayload(MB_String *chunkOut, struct fb_esp_tcp_response_handler_t &tcpHandler,
+                   struct server_response_data_t &response);
+  bool readResponse(MB_String *payload, struct fb_esp_tcp_response_handler_t &tcpHandler,
+                    struct server_response_data_t &response);
+  bool prepareDownload(const MB_String &filename, fb_esp_mem_storage_type type);
+  void prepareDownloadOTA(struct fb_esp_tcp_response_handler_t &tcpHandler, struct server_response_data_t &response);
+  void endDownloadOTA(struct fb_esp_tcp_response_handler_t &tcpHandler);
+  bool processDownload(const MB_String &filename, fb_esp_mem_storage_type type, uint8_t *buf,
+                       int bufLen, struct fb_esp_tcp_response_handler_t &tcpHandler, struct server_response_data_t &response,
+                       int &stage, bool isOTA);
+#if defined(ENABLE_GC_STORAGE) || defined(ENABLE_FB_STORAGE)
+  bool getUploadInfo(int type, int &stage, const MB_String &pChunk, bool isList, bool isMeta,
+                     struct fb_esp_fcs_file_list_item_t *fileitem, int &pos);
+  void getAllUploadInfo(int type, int &currentStage, const MB_String &payload, bool isList, bool isMeta,
+                        struct fb_esp_fcs_file_list_item_t *fileitem);
+#endif
+
+#if (defined(ESP32) || defined(MB_ARDUINO_PICO)) && defined(ENABLE_RTDB)
+  const char *getTaskName(size_t taskStackSize, bool isStream);
+#endif
+
+  void getError(MB_String &payload, struct fb_esp_tcp_response_handler_t &tcpHandler,
+                struct server_response_data_t &response, bool clearPayload);
+  void clearJson();
+  void freeJson();
+  void initJson();
   void checkOvf(size_t len, struct server_response_data_t &resp);
   bool reconnect(unsigned long dataTime = 0);
   MB_String getDataType(uint8_t type);
@@ -940,21 +1022,46 @@ private:
   bool tokenReady();
   void setTimeout();
   void setSecure();
-  void addQueue(struct fb_esp_rtdb_queue_info_t *qinfo);
+#if defined(ENABLE_ERROR_QUEUE) && defined(ENABLE_RTDB)
+  void addQueue(QueueItem *qItem);
+#endif
 #ifdef ENABLE_RTDB
   void clearQueueItem(QueueItem *item);
   void sendStreamToCB(int code);
-  void mSetResInt(const char *value);
-  void mSetResFloat(const char *value);
-  void mSetResBool(bool value);
+  void mSetIntValue(const char *value);
+  void mSetFloatValue(const char *value);
+  void mSetBoolValue(bool value);
+  template <typename T>
+  void restoreValue(int addr)
+  {
+    T *ptr = addrTo<T *>(addr);
+    if (ptr)
+      *ptr = to<T>();
+  }
+  void restoreCString(int addr)
+  {
+    char *ptr = addrTo<char *>(addr);
+    if (ptr)
+    {
+      strcpy(ptr, to<const char *>());
+      ptr[strlen(to<const char *>())] = '\0';
+    }
+  }
 #endif
-
-  bool init();
-  void addSO();
-  void removeSO();
-  void addQueueAddr();
-  void removeQueueAddr();
+  void addSession(fb_esp_con_mode mode);
+  void removeSession();
+  void addQueueSession();
+  void removeQueueSession();
   void setRaw(bool trim);
+  bool configReady()
+  {
+    if (!Signer.config && !Signer.mbfs)
+    {
+      session.response.code = FIREBASE_ERROR_UNINITIALIZED;
+      return false;
+    }
+    return true;
+  }
 };
 
 #endif

@@ -1,15 +1,20 @@
+#include "Firebase_Client_Version.h"
+#if !FIREBASE_CLIENT_VERSION_CHECK(40309)
+#error "Mixed versions compilation."
+#endif
+
 /**
- * Google's Firebase MultiPathStream class, FB_MP_Stream.h version 1.1.5
+ * Google's Firebase MultiPathStream class, FB_MP_Stream.h version 1.1.6
  *
  * This library supports Espressif ESP8266 and ESP32
  *
- * Created February 28, 2022
+ * Created December 19, 2022
  *
  * This work is a part of Firebase ESP Client library
- * Copyright (c) 2022 K. Suwatchai (Mobizt)
+ * Copyright (c) 2023 K. Suwatchai (Mobizt)
  *
  * The MIT License (MIT)
- * Copyright (c) 2022 K. Suwatchai (Mobizt)
+ * Copyright (c) 2023 K. Suwatchai (Mobizt)
  *
  *
  * Permission is hereby granted, free of charge, to any person returning a copy of
@@ -52,7 +57,7 @@ using namespace mb_string;
 class FIREBASE_MP_STREAM_CLASS
 {
     friend class FB_RTDB;
-    
+
 public:
     FIREBASE_MP_STREAM_CLASS();
     ~FIREBASE_MP_STREAM_CLASS();
@@ -65,14 +70,12 @@ public:
     String eventType;
 
 private:
-
-    UtilsClass *ut = nullptr;
     struct fb_esp_stream_info_t *sif = nullptr;
-    void begin(UtilsClass *u, struct fb_esp_stream_info_t *s);
+    void begin(struct fb_esp_stream_info_t *s);
     void empty();
     bool checkPath(MB_String &root, MB_String &branch);
 };
 
 #endif
 
-#endif //ENABLE
+#endif // ENABLE

@@ -1,10 +1,15 @@
+#include "Firebase_Client_Version.h"
+#if !FIREBASE_CLIENT_VERSION_CHECK(40309)
+#error "Mixed versions compilation."
+#endif
+
 /**
- * The custom TCP Client Class v1.0.0
+ * The custom TCP Client Class v1.0.3
  *
- * Created February 10, 2022
+ * Created March 5, 2022
  *
  * The MIT License (MIT)
- * Copyright (c) 2022 K. Suwatchai (Mobizt)
+ * Copyright (c) 2023 K. Suwatchai (Mobizt)
  *
  * TCPClient Arduino library for ESP32
  *
@@ -82,7 +87,7 @@ public:
 
     bool isInitialized()
     {
-        return this->client != nullptr && tcp_connection_cb != NULL && network_connection_cb != NULL;
+        return this->client != nullptr && network_status_cb != NULL && network_connection_cb != NULL;
     }
 
     int hostByName(const char *name, IPAddress &ip)
@@ -93,7 +98,7 @@ public:
 
     bool connect()
     {
-       
+
         if (!client)
             return false;
 
@@ -103,7 +108,6 @@ public:
             return true;
         }
 
-
 #if !defined(FB_ENABLE_EXTERNAL_CLIENT)
         return setError(FIREBASE_ERROR_EXTERNAL_CLIENT_DISABLED);
 #endif
@@ -112,8 +116,7 @@ public:
 
         networkReady();
 
-        if (this->tcp_connection_cb)
-            this->tcp_connection_cb(host.c_str(), port);
+        this->client->connect(host.c_str(), port);
 
         return connected();
     }
@@ -121,11 +124,6 @@ public:
     void setClient(Client *client)
     {
         this->client = client;
-    }
-
-    void tcpConnectionRequestCallback(FB_TCPConnectionRequestCallback tcpConnectionCB)
-    {
-        this->tcp_connection_cb = tcpConnectionCB;
     }
 
     void networkConnectionRequestCallback(FB_NetworkConnectionRequestCallback networkConnectionCB)
@@ -144,7 +142,7 @@ public:
     }
 
 private:
-    FB_TCPConnectionRequestCallback tcp_connection_cb = NULL;
+    friend class Firebase_Signer;
     FB_NetworkConnectionRequestCallback network_connection_cb = NULL;
     FB_NetworkStatusRequestCallback network_status_cb = NULL;
     volatile bool networkStatus = false;

@@ -1,10 +1,25 @@
 
 /**
- * Mobizt's SRAM/PSRAM supported String, version 1.2.4
+ * Mobizt's SRAM/PSRAM supported String, version 1.2.9
  *
- * Created February 28, 2022
+ * Created December 3, 2022
  *
  * Changes Log
+ *
+ * v1.2.9
+ * - substring optimization
+ *
+ * v1.2.8
+ * - Add support StringSumHelper class in Arduino
+ *
+ * v1.2.7
+ * - Fix string sub type checking issue
+ *
+ * v1.2.6
+ * - Update trim() function
+ *
+ * v1.2.5
+ * - Fixed double string issue and add support long double
  *
  * v1.2.4
  * - Check PSRAM availability before allocating the memory
@@ -38,7 +53,7 @@
  * - Initial release
  *
  * The MIT License (MIT)
- * Copyright (c) 2022 K. Suwatchai (Mobizt)
+ * Copyright (c) 2023 K. Suwatchai (Mobizt)
  *
  *
  * Permission is hereby granted, free of charge, to any person returning a copy of
@@ -71,7 +86,7 @@
 
 #define MB_STRING_MAJOR 1
 #define MB_STRING_MINOR 2
-#define MB_STRING_PATCH 4
+#define MB_STRING_PATCH 5
 
 #if defined(ESP8266) && defined(MMU_EXTERNAL_HEAP) && defined(MB_STRING_USE_PSRAM)
 #include <umm_malloc/umm_malloc.h>
@@ -121,27 +136,32 @@ namespace mb_string
         mb_string_sub_type_mb_string,
         mb_string_sub_type_arduino_string,
         mb_string_sub_type_std_string,
-        mb_string_sub_type_fptr
+        mb_string_sub_type_fptr,
+        mb_string_sub_type_string_sum_helper
+
     };
 
     typedef struct mb_string_ptr_t
     {
 
     public:
-        mb_string_ptr_t(uint32_t addr = 0, mb_string_sub_type type = mb_string_sub_type_cstring, int precision = -1)
+        mb_string_ptr_t(uint32_t addr = 0, mb_string_sub_type type = mb_string_sub_type_cstring, int precision = -1, const StringSumHelper *s = nullptr)
         {
             _addr = addr;
             _type = type;
             _precision = precision;
+            _ssh = s;
         }
         int precision() { return _precision; }
         mb_string_sub_type type() { return _type; }
         uint32_t address() { return _addr; }
+        const StringSumHelper *stringsumhelper() { return _ssh; }
 
     private:
         mb_string_sub_type _type = mb_string_sub_type_none;
         int _precision = -1;
         uint32_t _addr = 0;
+        const StringSumHelper *_ssh = nullptr;
 
     } MB_StringPtr;
 
@@ -239,7 +259,7 @@ namespace mb_string
     template <typename T>
     struct is_num_float
     {
-        static bool const value = MB_IS_SAME<T, float>::value || MB_IS_SAME<T, double>::value;
+        static bool const value = MB_IS_SAME<T, float>::value || MB_IS_SAME<T, double>::value || MB_IS_SAME<T, long double>::value;
     };
 
     template <typename T>
@@ -410,12 +430,14 @@ namespace mb_string
             return mb_string_sub_type_double;
         else if (is_arduino_string<T>::value)
             return mb_string_sub_type_arduino_string;
-        else if (is_std_string<T>::value || MB_IS_SAME<T, StringSumHelper>::value)
+        else if (is_std_string<T>::value)
             return mb_string_sub_type_std_string;
         else if (is_mb_string<T>::value)
             return mb_string_sub_type_mb_string;
         else if (is_arduino_flash_string_helper<T>::value)
             return mb_string_sub_type_fptr;
+        else if (MB_IS_SAME<T, StringSumHelper>::value)
+            return mb_string_sub_type_string_sum_helper;
         else if (ccs_t<T>::value)
             return mb_string_sub_type_cstring;
         else if (cs_t<T>::value)
@@ -431,9 +453,20 @@ namespace mb_string
     }
 
     template <typename T>
-    auto toStringPtr(const T &val) -> typename MB_ENABLE_IF<is_std_string<T>::value || is_arduino_string<T>::value || is_mb_string<T>::value || MB_IS_SAME<T, StringSumHelper>::value, MB_StringPtr>::type
+    auto toStringPtr(const T &val) -> typename MB_ENABLE_IF<is_std_string<T>::value || is_arduino_string<T>::value || is_mb_string<T>::value, MB_StringPtr>::type
     {
         return MB_StringPtr(reinterpret_cast<uint32_t>(&val), getSubType(val));
+    }
+
+    template <typename T>
+    auto toStringPtr(const T &val) -> typename MB_ENABLE_IF<MB_IS_SAME<T, StringSumHelper>::value, MB_StringPtr>::type
+    {
+#if defined(ESP8266)
+        return MB_StringPtr(reinterpret_cast<uint32_t>(&val), getSubType(val), -1);
+
+#else
+        return MB_StringPtr(reinterpret_cast<uint32_t>(&val), getSubType(val), -1, &val);
+#endif
     }
 
     template <typename T>
@@ -494,7 +527,19 @@ public:
         *this = str;
     }
 
+#if !defined(ESP8266)
+    MB_String(StringSumHelper rval)
+    {
+        *this = rval;
+    }
+#endif
+
     MB_String(MB_StringPtr value)
+    {
+        *this = value;
+    }
+
+    MB_String(String value)
     {
         *this = value;
     }
@@ -563,15 +608,45 @@ public:
     {
         reserve(33);
         if (bufLen > 0)
-            dtostrf(value, (decimalPlaces + 2), decimalPlaces, buf);
+        {
+            char *v = toFloatStr(value, 0, decimalPlaces);
+            if (v)
+            {
+                strcpy(buf, v);
+                delP(&v);
+            }
+        }
     }
 
     MB_String(double value, unsigned char decimalPlaces = 3)
     {
         reserve(33);
+
         if (bufLen > 0)
-            dtostrf(value, (decimalPlaces + 2), decimalPlaces, buf);
+        {
+            char *v = toFloatStr(value, 1, decimalPlaces);
+            if (v)
+            {
+                strcpy(buf, v);
+                delP(&v);
+            }
+        }
     }
+
+    MB_String(long double value, unsigned char decimalPlaces = 3)
+    {
+        reserve(65);
+        if (bufLen > 0)
+        {
+            char *v = toFloatStr(value, 2, decimalPlaces);
+            if (v)
+            {
+                strcpy(buf, v);
+                delP(&v);
+            }
+        }
+    }
+
 #if !defined(__AVR__)
     MB_String &operator=(const std::string &rhs)
     {
@@ -601,6 +676,22 @@ public:
 
         return *this;
     }
+
+#if !defined(ESP8266)
+    MB_String &operator=(StringSumHelper rval)
+    {
+        String temp = rval;
+        *this = temp;
+        return *this;
+    }
+
+    MB_String &operator+=(StringSumHelper rval)
+    {
+        String temp = rval;
+        *this += temp;
+        return *this;
+    }
+#endif
 
     MB_String &operator+=(const __FlashStringHelper *str)
     {
@@ -762,6 +853,12 @@ public:
             *this += addrTo<const char *>(src.address());
         else if (src.type() == mb_string_sub_type_arduino_string)
             *this += *addrTo<String *>(src.address());
+        else if (src.type() == mb_string_sub_type_string_sum_helper)
+#if !defined(ESP8266)
+            *this += *src.stringsumhelper();
+#else
+            *this += *addrTo<String *>(src.address());
+#endif
 #if !defined(__AVR__)
         else if (src.type() == mb_string_sub_type_std_string)
             *this += *addrTo<std::string *>(src.address());
@@ -832,7 +929,7 @@ public:
         if (precision < 0)
             precision = 5;
 
-        char *s = floatStr(value, precision);
+        char *s = toFloatStr(value, 0, precision);
         if (s)
         {
             *this += s;
@@ -846,7 +943,21 @@ public:
         if (precision < 0)
             precision = 9;
 
-        char *s = doubleStr(value, precision);
+        char *s = toFloatStr(value, 1, precision);
+        if (s)
+        {
+            *this += s;
+            delP(&s);
+        }
+        return (*this);
+    }
+
+    MB_String &appendNum(long double value, int precision = 9)
+    {
+        if (precision < 0)
+            precision = 9;
+
+        char *s = toFloatStr(value, 2, precision);
         if (s)
         {
             *this += s;
@@ -882,14 +993,14 @@ public:
         int p1 = 0, p2 = length() - 1;
         while (p1 < (int)length())
         {
-            if (buf[p1] != ' ')
+            if (buf[p1] > 32)
                 break;
             p1++;
         }
 
         while (p2 >= 0)
         {
-            if (buf[p2] != ' ')
+            if (buf[p2] > 32)
                 break;
             p2--;
         }
@@ -1074,27 +1185,19 @@ public:
 
     MB_String substr(size_t offset, size_t len = npos) const
     {
-        MB_String str;
+        MB_String out;
+        substr(out, offset, len);
+        return out;
+    }
 
-        if (length() > 0 && offset < length())
+    void substr(MB_String &out, size_t offset, size_t len = npos) const
+    {
+        if (len > 0 && length() > 0 && offset < length())
         {
             if (len > length() - offset)
                 len = length() - offset;
-
-            size_t last = offset + len;
-
-            if (offset < length() && len > 0 && last <= length())
-            {
-                if (str._reserve(len, false))
-                {
-                    int j = 0;
-                    for (size_t i = offset; i < last; i++)
-                        *(str.buf + j++) = buf[i];
-                    *(str.buf + j) = '\0';
-                }
-            }
+            out.copy(buf + offset, len);
         }
-        return str;
     }
 
     void clear()
@@ -1212,8 +1315,8 @@ public:
 
     MB_String &insert(size_t pos, char c)
     {
-        char tmp[2]{c, '\0'};
-        return insert(pos, tmp);
+        char temp[2]{c, '\0'};
+        return insert(pos, temp);
     }
 
     size_t find_first_of(const char *cstr, size_t pos = 0) const
@@ -1308,17 +1411,17 @@ public:
         return find_last_not_of(str.buf, pos);
     }
 
-    void replaceAll(const char *find, const char *replace)
+    MB_String & replaceAll(const char *find, const char *replace)
     {
         if (length() == 0)
-            return;
+            return *this;;
 
         int i, cnt = 0;
         int repLen = strlen(replace);
         int findLen = strlen(find);
 
-        MB_String tmp = buf;
-        char *s = tmp.buf;
+        MB_String temp = buf;
+        char *s = temp.buf;
         clear();
 
         for (i = 0; s[i] != '\0'; i++)
@@ -1348,7 +1451,9 @@ public:
             buf[i] = '\0';
         }
 
-        tmp.clear();
+        temp.clear();
+
+        return *this;
     }
 
     void replaceAll(const MB_String &find, const MB_String &replace)
@@ -1370,137 +1475,6 @@ public:
     static const size_t npos = -1;
 
 private:
-    /*** dtostrf function is taken from
-     * https://github.com/stm32duino/Arduino_Core_STM32/blob/master/cores/arduino/avr/dtostrf.c
-     */
-
-    /***
-     * dtostrf - Emulation for dtostrf function from avr-libc
-     * Copyright (c) 2013 Arduino.  All rights reserved.
-     * Written by Cristian Maglie <c.maglie@arduino.cc>
-     * This library is free software; you can redistribute it and/or
-     * modify it under the terms of the GNU Lesser General Public
-     * License as published by the Free Software Foundation; either
-     * version 2.1 of the License, or (at your option) any later version.
-     * This library is distributed in the hope that it will be useful,
-     * but WITHOUT ANY WARRANTY; without even the implied warranty of
-     * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-     * Lesser General Public License for more details.
-     * You should have received a copy of the GNU Lesser General Public
-     * License along with this library; if not, write to the Free Software
-     * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
-     */
-
-    char *dtostrf(double val, signed char width, unsigned char prec, char *sout)
-    {
-        // Commented code is the original version
-        /***
-          char fmt[20];
-          sprintf(fmt, "%%%d.%df", width, prec);
-          sprintf(sout, fmt, val);
-          return sout;
-        */
-
-        // Handle negative numbers
-        uint8_t negative = 0;
-        if (val < 0.0)
-        {
-            negative = 1;
-            val = -val;
-        }
-
-        // Round correctly so that print(1.999, 2) prints as "2.00"
-        double rounding = 0.5;
-        for (int i = 0; i < prec; ++i)
-        {
-            rounding /= 10.0;
-        }
-
-        val += rounding;
-
-        // Extract the integer part of the number
-        unsigned long int_part = (unsigned long)val;
-        double remainder = val - (double)int_part;
-
-        if (prec > 0)
-        {
-            // Extract digits from the remainder
-            unsigned long dec_part = 0;
-            double decade = 1.0;
-            for (int i = 0; i < prec; i++)
-            {
-                decade *= 10.0;
-            }
-            remainder *= decade;
-            dec_part = (int)remainder;
-
-            if (negative)
-            {
-                sprintf(sout, (const char *)MBSTRING_FLASH_MCR("-%ld.%0*ld"), int_part, prec, dec_part);
-            }
-            else
-            {
-                sprintf(sout, (const char *)MBSTRING_FLASH_MCR("%ld.%0*ld"), int_part, prec, dec_part);
-            }
-        }
-        else
-        {
-            if (negative)
-            {
-                sprintf(sout, (const char *)MBSTRING_FLASH_MCR("-%ld"), int_part);
-            }
-            else
-            {
-                sprintf(sout, (const char *)MBSTRING_FLASH_MCR("%ld"), int_part);
-            }
-        }
-        // Handle minimum field width of the output string
-        // width is signed value, negative for left adjustment.
-        // Range -128,127
-
-        char *fmt = (char *)newP(129);
-        unsigned int w = width;
-        if (width < 0)
-        {
-            negative = 1;
-            w = -width;
-        }
-        else
-        {
-            negative = 0;
-        }
-
-        if (strlen(sout) < w)
-        {
-            memset(fmt, ' ', 128);
-            fmt[w - strlen(sout)] = '\0';
-            if (negative == 0)
-            {
-                char *tmp = (char *)newP(strlen(sout) + 1);
-                strcpy(tmp, sout);
-                strcpy(sout, fmt);
-                strcat(sout, tmp);
-                delP(&tmp);
-            }
-            else
-            {
-                // left adjustment
-                strcat(sout, fmt);
-            }
-        }
-
-        delP(&fmt);
-
-        return sout;
-    }
-
-    char *intStr(int value)
-    {
-        char *t = (char *)newP(36);
-        sprintf(t, (const char *)MBSTRING_FLASH_MCR("%d"), value);
-        return t;
-    }
-
 #if defined(ARDUINO_ARCH_SAMD) || defined(__AVR_ATmega4809__) || defined(ARDUINO_NANO_RP2040_CONNECT)
 
     char *int32Str(signed long value)
@@ -1540,19 +1514,23 @@ private:
         return t;
     }
 
-    char *floatStr(float value, int precision)
+    char *toFloatStr(long double value, int type, int precision)
     {
-        char *t = (char *)newP(32);
-        dtostrf(value, (precision + 2), precision, t);
-        trim(t);
-        return t;
-    }
+        int width = type == 0 ? 32 : 64;
 
-    char *doubleStr(double value, int precision)
-    {
-        char *t = (char *)newP(64);
-        dtostrf(value, (precision + 2), precision, t);
-        trim(t);
+        char *t = (char *)newP(width);
+
+        if (t)
+        {
+            MB_String fmt = MBSTRING_FLASH_MCR("%.");
+            fmt += precision;
+            if (type == 2)
+                fmt += MBSTRING_FLASH_MCR("L");
+            fmt += MBSTRING_FLASH_MCR("f");
+            sprintf(t, fmt.c_str(), value);
+            trim(t);
+        }
+
         return t;
     }
 
@@ -1784,7 +1762,6 @@ private:
 
     MB_String &copy(const char *cstr, size_t length)
     {
-        clear();
 
         if (!_reserve(length, false))
         {

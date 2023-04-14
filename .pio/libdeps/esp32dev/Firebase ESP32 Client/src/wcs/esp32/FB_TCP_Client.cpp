@@ -1,10 +1,15 @@
+#include "Firebase_Client_Version.h"
+#if !FIREBASE_CLIENT_VERSION_CHECK(40309)
+#error "Mixed versions compilation."
+#endif
+
 /**
- * Firebase TCP Client v1.1.19
+ * Firebase TCP Client v1.1.24
  *
- * Created February 20, 2022
+ * Created March 5, 2022
  *
  * The MIT License (MIT)
- * Copyright (c) 2022 K. Suwatchai (Mobizt)
+ * Copyright (c) 2023 K. Suwatchai (Mobizt)
  *
  *
  * Copyright (c) 2015 Markus Sattler. All rights reserved.
@@ -37,6 +42,7 @@
 
 FB_TCP_Client::FB_TCP_Client()
 {
+ 
   client = wcs.get();
 }
 
@@ -73,13 +79,10 @@ void FB_TCP_Client::setCACert(const char *caCert)
     setInsecure();
     baseSetCertType(fb_cert_type_none);
   }
-  // wcs->setNoDelay(true);
 }
 
 bool FB_TCP_Client::setCertFile(const char *caCertFile, mb_fs_mem_storage_type storageType)
 {
-  if (!mbfs)
-    return false;
 
   if (strlen(caCertFile) > 0)
   {
@@ -96,10 +99,12 @@ bool FB_TCP_Client::setCertFile(const char *caCertFile, mb_fs_mem_storage_type s
 
       if (storageType == mb_fs_mem_storage_type_flash)
       {
+#if defined(MBFS_FLASH_FS)
         fs::File file = mbfs->getFlashFile();
         wcs->loadCACert(file, len);
-        mbfs->close(storageType);
         baseSetCertType(fb_cert_type_file);
+#endif
+        mbfs->close(storageType);
       }
       else if (storageType == mb_fs_mem_storage_type_sd)
       {
@@ -107,23 +112,21 @@ bool FB_TCP_Client::setCertFile(const char *caCertFile, mb_fs_mem_storage_type s
 #if defined(MBFS_ESP32_SDFAT_ENABLED)
 
         if (cert)
-          mbfs->delP(&cert);
+          MemoryHelper::freeBuffer(mbfs, cert);
 
-        cert = (char *)mbfs->newP(len);
+        cert = MemoryHelper::createBuffer<char *>(mbfs, len);
         if (mbfs->available(storageType))
           mbfs->read(storageType, (uint8_t *)cert, len);
 
-        mbfs->close(storageType);
         wcs->setCACert((const char *)cert);
         baseSetCertType(fb_cert_type_file);
 
 #elif defined(MBFS_SD_FS)
         fs::File file = mbfs->getSDFile();
         wcs->loadCACert(file, len);
-        mbfs->close(storageType);
         baseSetCertType(fb_cert_type_file);
-
 #endif
+        mbfs->close(storageType);
       }
     }
   }
@@ -160,10 +163,7 @@ int FB_TCP_Client::hostByName(const char *name, IPAddress &ip)
 
 void FB_TCP_Client::setTimeout(uint32_t timeoutmSec)
 {
-  if (wcs)
-    wcs->setTimeout(timeoutmSec / 1000);
-
-  baseSetTimeout(timeoutmSec);
+  baseSetTimeout(timeoutmSec / 1000);
 }
 
 bool FB_TCP_Client::begin(const char *host, uint16_t port, int *response_code)
@@ -183,10 +183,10 @@ bool FB_TCP_Client::connect()
     return true;
   }
 
-  wcs->setTimeout(timeoutMs);
-
   if (!wcs->_connect(host.c_str(), port, timeoutMs))
     return setError(FIREBASE_ERROR_TCP_ERROR_CONNECTION_REFUSED);
+
+  wcs->setTimeout(timeoutMs);
 
   return connected();
 }
@@ -210,7 +210,7 @@ void FB_TCP_Client::release()
     wcs.release();
 
     if (cert)
-      mbfs->delP(&cert);
+      MemoryHelper::freeBuffer(mbfs, cert);
 
     baseSetCertType(fb_cert_type_undefined);
   }

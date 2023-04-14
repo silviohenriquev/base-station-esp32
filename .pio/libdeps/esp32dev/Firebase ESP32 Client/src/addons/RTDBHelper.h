@@ -3,20 +3,21 @@
 
 #pragma once
 
+#include <Arduino.h>
+#include "mbfs/MB_MCU.h"
 #include "FirebaseFS.h"
 
 #ifdef ENABLE_RTDB
 
 #ifndef RTDBHelper_H
 #define RTDBHelper_H
-#include <Arduino.h>
 
 #if defined(FIREBASE_ESP_CLIENT)
 #include <Firebase_ESP_Client.h>
 #elif defined(FIREBASE_ESP32_CLIENT) || defined(FIREBASE_ESP8266_CLIENT)
 #if defined(ESP32)
 #include <FirebaseESP32.h>
-#elif defined(ESP8266)
+#elif defined(ESP8266) || defined(MB_ARDUINO_PICO)
 #include <FirebaseESP8266.h>
 #endif
 #endif
@@ -28,7 +29,11 @@ void printResult(FirebaseData &data)
     else if (data.dataTypeEnum() == fb_esp_rtdb_data_type_float)
         Serial.println(data.to<float>(), 5);
     else if (data.dataTypeEnum() == fb_esp_rtdb_data_type_double)
+#if defined(MB_ARDUINO_PICO)
+        Serial.printf("%.9lf\n", data.to<double>());
+#else
         printf("%.9lf\n", data.to<double>());
+#endif
     else if (data.dataTypeEnum() == fb_esp_rtdb_data_type_boolean)
         Serial.println(data.to<bool>() == 1 ? (const char *)FPSTR("true") : (const char *)FPSTR("false"));
     else if (data.dataTypeEnum() == fb_esp_rtdb_data_type_string)
@@ -77,7 +82,11 @@ void printResult(FirebaseData &data)
             else if (result.typeNum == FirebaseJson::JSON_FLOAT)
                 Serial.println(result.to<float>());
             else if (result.typeNum == FirebaseJson::JSON_DOUBLE)
+#if defined(MB_ARDUINO_PICO)
+                Serial.printf("%.9lf\n", result.to<double>());
+#else
                 printf("%.9lf\n", result.to<double>());
+#endif
             else if (result.typeNum == FirebaseJson::JSON_STRING ||
                      result.typeNum == FirebaseJson::JSON_NULL ||
                      result.typeNum == FirebaseJson::JSON_OBJECT ||
@@ -102,7 +111,7 @@ void printResult(FirebaseData &data)
     }
     else if (data.dataTypeEnum() == fb_esp_rtdb_data_type_file)
     {
-#if defined(FLASH_FS)
+#if defined(DEFAULT_FLASH_FS)
         File file = data.to<File>();
         int i = 0;
         while (file.available())
@@ -120,7 +129,7 @@ void printResult(FirebaseData &data)
             i++;
         }
         Serial.println();
-        file.close();
+        data.closeFile();
 #endif
     }
     else
@@ -137,7 +146,11 @@ void printResult(FIREBASE_STREAM_CLASS &data)
     else if (data.dataTypeEnum() == fb_esp_rtdb_data_type_float)
         Serial.println(data.to<float>(), 5);
     else if (data.dataTypeEnum() == fb_esp_rtdb_data_type_double)
-        printf((const char *)FPSTR("%.9lf\n"), data.to<double>());
+#if defined(MB_ARDUINO_PICO)
+        Serial.printf("%.9lf\n", data.to<double>());
+#else
+        printf("%.9lf\n", data.to<double>());
+#endif
     else if (data.dataTypeEnum() == fb_esp_rtdb_data_type_boolean)
         Serial.println(data.to<bool>() == 1 ? (const char *)FPSTR("true") : (const char *)FPSTR("false"));
     else if (data.dataTypeEnum() == fb_esp_rtdb_data_type_string || data.dataTypeEnum() == fb_esp_rtdb_data_type_null)
@@ -188,7 +201,11 @@ void printResult(FIREBASE_STREAM_CLASS &data)
             else if (result.typeNum == FirebaseJson::JSON_FLOAT)
                 Serial.println(result.to<float>());
             else if (result.typeNum == FirebaseJson::JSON_DOUBLE)
+#if defined(MB_ARDUINO_PICO)
+                Serial.printf("%.9lf\n", result.to<double>());
+#else
                 printf("%.9lf\n", result.to<double>());
+#endif
             else if (result.typeNum == FirebaseJson::JSON_STRING ||
                      result.typeNum == FirebaseJson::JSON_NULL ||
                      result.typeNum == FirebaseJson::JSON_OBJECT ||
@@ -231,7 +248,7 @@ void printResult(FIREBASE_STREAM_CLASS &data)
             i++;
         }
         Serial.println();
-        file.close();
+        data.closeFile();
 #endif
     }
 }

@@ -1,15 +1,20 @@
+#include "Firebase_Client_Version.h"
+#if !FIREBASE_CLIENT_VERSION_CHECK(40309)
+#error "Mixed versions compilation."
+#endif
+
 /**
- * Google's Firebase MultiPathStream class, FB_MP_Stream.cpp version 1.1.5
+ * Google's Firebase MultiPathStream class, FB_MP_Stream.cpp version 1.1.6
  *
  * This library supports Espressif ESP8266 and ESP32
  *
- * Created February 28, 2022
+ * Created December 19, 2022
  *
  * This work is a part of Firebase ESP Client library
- * Copyright (c) 2022 K. Suwatchai (Mobizt)
+ * Copyright (c) 2023 K. Suwatchai (Mobizt)
  *
  * The MIT License (MIT)
- * Copyright (c) 2022 K. Suwatchai (Mobizt)
+ * Copyright (c) 2023 K. Suwatchai (Mobizt)
  *
  *
  * Permission is hereby granted, free of charge, to any person returning a copy of
@@ -37,7 +42,6 @@
 #ifndef FIREBASE_MULTIPATH_STREAM_SESSION_CPP
 #define FIREBASE_MULTIPATH_STREAM_SESSION_CPP
 
-
 #include "FB_MP_Stream.h"
 
 FIREBASE_MP_STREAM_CLASS::FIREBASE_MP_STREAM_CLASS()
@@ -48,9 +52,8 @@ FIREBASE_MP_STREAM_CLASS::~FIREBASE_MP_STREAM_CLASS()
 {
 }
 
-void FIREBASE_MP_STREAM_CLASS::begin(UtilsClass *u, struct fb_esp_stream_info_t *s)
+void FIREBASE_MP_STREAM_CLASS::begin(struct fb_esp_stream_info_t *s)
 {
-    ut = u;
     sif = s;
 }
 
@@ -62,7 +65,7 @@ bool FIREBASE_MP_STREAM_CLASS::get(const String &path /* child path */)
     bool res = false;
     if (sif->data_type == fb_esp_data_type::d_json)
     {
-        bool r = strcmp(sif->path.c_str(), pgm2Str(fb_esp_pgm_str_1)) == 0;
+        bool r = strcmp(sif->path.c_str(), pgm2Str(fb_esp_pgm_str_1/* "/" */)) == 0;
         if (r)
         {
             FirebaseJsonData data;
@@ -70,7 +73,7 @@ bool FIREBASE_MP_STREAM_CLASS::get(const String &path /* child path */)
             if (data.success)
             {
                 type = data.type;
-                if (strcmp(type.c_str(), pgm2Str(fb_esp_pgm_str_186)) == 0)
+                if (strcmp(type.c_str(), pgm2Str(fb_esp_rtdb_pgm_str_40/* "object" */)) == 0)
                     type = sif->data_type_str.c_str();
                 eventType = sif->event_type_str.c_str();
                 value = data.to<const char *>();
@@ -82,7 +85,7 @@ bool FIREBASE_MP_STREAM_CLASS::get(const String &path /* child path */)
         {
             MB_String root = path.c_str();
             MB_String branch = sif->path;
-            //check for the steam data path is matched or under the root (child path)
+            // check for the steam data path is matched or under the root (child path)
             if (checkPath(root, branch))
             {
                 sif->m_json->toString(value, true);
@@ -97,7 +100,7 @@ bool FIREBASE_MP_STREAM_CLASS::get(const String &path /* child path */)
     {
         MB_String root = path.c_str();
         MB_String branch = sif->path;
-        //check for the steam data path is matched or under the root (child path)
+        // check for the steam data path is matched or under the root (child path)
         if (checkPath(root, branch))
         {
             value = sif->data.c_str();
@@ -148,4 +151,4 @@ int FIREBASE_MP_STREAM_CLASS::maxPayloadLength()
 
 #endif
 
-#endif //ENABLE
+#endif // ENABLE

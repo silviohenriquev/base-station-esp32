@@ -1,19 +1,19 @@
 /**
- * FireSense v1.0.10
+ * FireSense v1.0.14
  *
  * The Programmable Data Logging and IO Control library.
  *
  * This library required FirebaseESP32 or FirebaseESP8266 or Firebase ESP Client to be installed.
  *
- * This library supports Espressif ESP8266 and ESP32
+ * This library supports Espressif ESP8266, ESP32 and RP2040 Pico
  *
- * Created February 10, 2022
+ * Created March 5, 2023
  *
  * This work is a part of Firebase ESP Client library
- * Copyright (c) 2022 K. Suwatchai (Mobizt)
+ * Copyright (c) 2023 K. Suwatchai (Mobizt)
  *
  * The MIT License (MIT)
- * Copyright (c) 2022 K. Suwatchai (Mobizt)
+ * Copyright (c) 2023 K. Suwatchai (Mobizt)
  *
  *
  * Permission is hereby granted, free of charge, to any person returning a copy
@@ -40,20 +40,20 @@
  * IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
  * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
-
+#include <Arduino.h>
+#include "mbfs/MB_MCU.h"
 #include "FirebaseFS.h"
 
 #ifdef ENABLE_RTDB
 
 #ifndef FireSenseClass_H
 #define FireSenseClass_H
-#include <Arduino.h>
 
 #if defined(ESP32)
 #if defined(FIREBASE_ESP32_CLIENT)
 #include <FirebaseESP32.h>
 #endif
-#elif defined(ESP8266)
+#elif defined(ESP8266) || defined(MB_ARDUINO_PICO)
 #if defined(FIREBASE_ESP8266_CLIENT)
 #include <FirebaseESP8266.h>
 #endif
@@ -73,10 +73,10 @@
 
 using namespace mb_string;
 
-class MillisTimer
+class MB_MillisTimer
 {
 public:
-    MillisTimer(){};
+    MB_MillisTimer(){};
 
     void setTo(uint32_t timeout)
     {
@@ -581,7 +581,7 @@ private:
         struct channel_info_t *channel = nullptr;
         struct function_info_t function;
         int tmo = -1;
-        MillisTimer timer;
+        MB_MillisTimer timer;
     };
 
     struct stm_right_operand_item_t
@@ -3739,8 +3739,6 @@ void FireSenseClass::trim(const char *s, MB_String &d, bool isExpression, const 
         p1 = p3;
         p2++;
     }
-
-    MB_String tmp;
 
     int i = 0;
     while (i < p2 - p1 + 1)

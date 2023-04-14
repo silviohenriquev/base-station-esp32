@@ -1,20 +1,20 @@
 /*
- * FirebaseJson, version 2.6.14
+ * FirebaseJson, version 3.0.6
  *
  * The Easiest Arduino library to parse, create and edit JSON object using a relative path.
  *
- * Created March 5, 2022
+ * Created March 5, 2023
  *
  * Features
  * - Using path to access node element in search style e.g. json.get(result,"a/b/c")
- * - Serializing to writable objects e.g. String, C/C++ string, Client (WiFi and Ethernet), File and Hardware Serial.
- * - Deserializing from const char, char array, string literal and stream e.g. Client (WiFi and Ethernet), File and
+ * - Serializing to writable objects e.g. String, C/C++ string, Clients (WiFi, Ethernet, and GSM), File and Hardware Serial.
+ * - Deserializing from const char, char array, string literal and stream e.g. Clients (WiFi, Ethernet, and GSM), File and
  *   Hardware Serial.
  * - Use managed class, FirebaseJsonData to keep the deserialized result, which can be casted to any primitive data types.
  *
  *
  * The MIT License (MIT)
- * Copyright (c) 2022 K. Suwatchai (Mobizt)
+ * Copyright (c) 2023 K. Suwatchai (Mobizt)
  * Copyright (c) 2009-2017 Dave Gamble and cJSON contributors
  *
  *
@@ -77,7 +77,27 @@ void FirebaseJsonBase::mCopy(FirebaseJsonBase &other)
 bool FirebaseJsonBase::setRaw(const char *raw)
 {
     mClear();
-    root = parse(raw);
+
+    if (raw)
+    {
+        size_t i = 0;
+        while (i < strlen(raw) && raw[i] == ' ')
+        {
+            i++;
+        }
+
+        if (raw[i] == '{' || raw[i] == '[')
+        {
+            this->root_type = (raw[i] == '{') ? Root_Type_JSON : Root_Type_JSONArray;
+            root = parse(raw);
+        }
+        else
+        {
+            this->root_type = Root_Type_Raw;
+            root = MB_JSON_CreateRaw(raw);
+        }
+    }
+
     return root != NULL;
 }
 
@@ -185,36 +205,27 @@ void FirebaseJsonBase::mAdd(MB_VECTOR<MB_String> keys, MB_JSON **parent, int beg
     }
 }
 
-void FirebaseJsonBase::makeList(const char *str, MB_VECTOR<MB_String> &keys, char delim)
+void FirebaseJsonBase::makeList(const MB_String &str, MB_VECTOR<MB_String> &keys, char delim)
 {
     clearList(keys);
-
-    int current = 0, previous = 0;
-    current = strpos(str, delim, 0);
+    size_t current, previous = 0;
+    current = str.find(delim, previous);
     MB_String s;
-    while (current != -1)
+    while (current != MB_String::npos)
     {
-        s.clear();
-        substr(s, str, previous, current - previous);
-        trim(s);
-        if (s.length() > 0)
-            keys.push_back(s);
-
+        pushLish(str.substr(previous, current - previous), keys);
         previous = current + 1;
-        current = strpos(str, delim, previous);
+        current = str.find(delim, previous);
     }
+    pushLish(str.substr(previous, current - previous), keys);
+}
 
-    s.clear();
-
-    if (previous > 0 && current == -1)
-        substr(s, str, previous, strlen(str) - previous);
-    else
-        s = str;
-
-    trim(s);
+void FirebaseJsonBase::pushLish(const MB_String &str, MB_VECTOR<MB_String> &keys)
+{
+    MB_String s = str;
+    s.trim();
     if (s.length() > 0)
         keys.push_back(s);
-    s.clear();
 }
 
 void FirebaseJsonBase::clearList(MB_VECTOR<MB_String> &keys)
@@ -768,6 +779,13 @@ void FirebaseJsonBase::mSetElementType(FirebaseJsonData *result)
 
         strcpy(buf, (const char *)MBSTRING_FLASH_MCR("string"));
         result->typeNum = JSON_STRING;
+
+        // try casting the string to numbers
+        if (result->stringValue.length() <= 32)
+        {
+            mSetResInt(result, result->stringValue.c_str());
+            mSetResFloat(result, result->stringValue.c_str());
+        }
     }
     else if (result->type_num == MB_JSON_NULL)
     {
@@ -931,6 +949,11 @@ FirebaseJsonArray::FirebaseJsonArray(FirebaseJsonArray &other)
 
 FirebaseJsonArray &FirebaseJsonArray::nAdd(MB_JSON *value)
 {
+    if (root_type != Root_Type_JSONArray)
+        mClear();
+
+    root_type = Root_Type_JSONArray;
+
     prepareRoot();
 
     if (value == NULL)
@@ -967,6 +990,13 @@ bool FirebaseJsonArray::mGetIdx(FirebaseJsonData *result, int index, bool pretti
 
 bool FirebaseJsonArray::mSetIdx(int index, MB_JSON *value)
 {
+    if (root_type != Root_Type_JSONArray)
+        mClear();
+
+    root_type = Root_Type_JSONArray;
+
+    prepareRoot();
+
     int size = MB_JSON_GetArraySize(root);
     if (index < size)
         return MB_JSON_ReplaceItemInArray(root, index, value);

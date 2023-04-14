@@ -3,18 +3,21 @@
 #include <LoRaE220Communication.h>
 #include <FirebaseESP32.h>
 #include "api.h"
+#include "time.h"
 
 FirebaseData firebaseData;
 FirebaseJson json;
 
 LoRaE220Communication lora(&Serial2, 15, 21, 19, DeviceFunction::base_station);
 
+void restart();
 void wifiConnect();
 void firebaseInit();
 void postData(SensorData);
 void postLastData(SensorData);
 
-int restart;
+int day;
+int month;
 
 void setup(){
     Serial.begin(9600);
@@ -28,20 +31,41 @@ void setup(){
 }
 
 void loop(){
-    restart = Firebase.getInt(firebaseData,"restart/");
-    Serial.print("Restart:  ");
-    Serial.println(restart);
-    if(restart == 0){
-        Firebase.setInt(firebaseData, "restart/", 2);
-        ESP.restart();
-    } 
-        
+
+    restart();
     if(lora.updatePacket() == msgType::SENSORS_DATA){
-        lora.printSensorsData(lora.getSensorsData());
-        postData(lora.getSensorsData());
-        lora.blink(100);
+        if(lora.getSensorsData().id==1){
+            lora.printSensorsData(lora.getSensorsData());
+            postData(lora.getSensorsData());
+            lora.blink(100);
+        }
+        
+
     }    
     
+}
+
+void restart(){
+    //Firebase.getInt(firebaseData,"restart/");
+    //restart=firebaseData.intData();
+    //Serial.print("Restart:  ");
+    //Serial.println(restart);
+    if (!Firebase.readStream(firebaseData)){
+        Serial.println(firebaseData.errorReason());
+    }
+
+    if (firebaseData.streamTimeout()){
+        Serial.println("Stream timeout, resume streaming...");
+        Serial.println();
+    }
+
+    if(firebaseData.streamAvailable()){
+        Serial.println("Stream disponivel");
+        if(firebaseData.to<int>()==1){
+            Firebase.setInt(firebaseData, "restart/", 0);
+            ESP.restart();
+        }
+    }
 }
 
 void wifiConnect(){
@@ -70,13 +94,25 @@ void firebaseInit(){
     Firebase.setwriteSizeLimit(firebaseData, "tiny");
     Serial.println("--------------------------------");
     Serial.println("Connected...");
+
+    if (!Firebase.beginStream(firebaseData, "restart")){
+        Serial.println(firebaseData.errorReason());
+    }
 }
 
 void postData(SensorData data){
-    String path = "/database/";
-    path += String(data.id);
+    
+    time_t timestamp = data.date;
+    struct tm* timeinfo = localtime(&timestamp);
+    day = timeinfo->tm_mday;
+    month = timeinfo->tm_mon + 1;
+    String path = "/database-novo/"+String(data.id)+"/"+String(month)+"/"+String(day)+"/";
     String send = "{\"id\": ";
     send += data.id;
+    send += ", \"mes\": ";
+    send += month;
+    send += ", \"dia\": ";
+    send += day;
     send += ", \"date\": ";
     send += data.date;
     send += ", \"irradiance\": ";
@@ -97,11 +133,14 @@ void postData(SensorData data){
 }
 
 void postLastData(SensorData data){
-    String path = "/database/";
-    path += String(data.id);
-    path += "/lastData";
+    String path = "/database-novo/";
+    path += "lastData";
     String send = "{\"id\": ";
     send += data.id;
+    send += ", \"mes\": ";
+    send += month;
+    send += ", \"dia\": ";
+    send += day;
     send += ", \"date\": ";
     send += data.date;
     send += ", \"irradiance\": ";

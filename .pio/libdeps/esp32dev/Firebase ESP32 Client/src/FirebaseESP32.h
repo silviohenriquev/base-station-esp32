@@ -1,14 +1,7 @@
-#ifndef FIREBASE_CLIENT_VERSION
-#define FIREBASE_CLIENT_VERSION "3.15.5"
-#endif
-
 /**
- * Google's Firebase Realtime Database Arduino Library for ESP32, v3.15.5
+ * Google's Firebase Realtime Database Arduino Library for ESP32
  *
- * Created March 5, 2022
- *
- *   Updates:
- * - Fixed compile error for FirebaseJsonArray remove.
+ * Created April 5, 2023
  *
  *
  * This library provides ESP32 to perform REST API by GET PUT, POST, PATCH,
@@ -18,7 +11,7 @@
  * The library was tested and work well with ESP32 based modules.
  *
  * The MIT License (MIT)
- * Copyright (c) 2021 K. Suwatchai (Mobizt)
+ * Copyright (c) 2023 K. Suwatchai (Mobizt)
  *
  *
  * Permission is hereby granted, free of charge, to any person returning a copy

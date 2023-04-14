@@ -27,7 +27,11 @@ FirebaseAuth    KEYWORD1
 
 begin   KEYWORD2
 setIdToken  KEYWORD2
+setAccessToken  KEYWORD2
+setCustomToken  KEYWORD2
 isTokenExpired  KEYWORD2
+refreshToken    KEYWORD2
+reset   KEYWORD2
 deleteUser  KEYWORD2
 reconnectWiFi   KEYWORD2
 setFloatDigits  KEYWORD2
@@ -69,6 +73,7 @@ setExternalClientCallbacks  KEYWORD2
 setNetworkStatus    KEYWORD2
 getFreeHeap KEYWORD2
 getCurrentTime  KEYWORD2
+setUDPClient    KEYWORD2
 
 set KEYWORD2
 push    KEYWORD2
@@ -114,6 +119,7 @@ setStreamCallback   KEYWORD2
 setMultiPathStreamCallback  KEYWORD2
 removeStreamCallback    KEYWORD2
 removeMultiPathStreamCallback   KEYWORD2
+runStream   KEYWORD2
 beginAutoRunErrorQueue  KEYWORD2
 endAutoRunErrorQueue    KEYWORD2
 clearErrorQueue KEYWORD2
@@ -166,6 +172,7 @@ ETag    KEYWORD2
 streamPath  KEYWORD2
 dataPath    KEYWORD2
 errorReason KEYWORD2
+errorCode   KEYWORD2
 intData KEYWORD2
 floatData   KEYWORD2
 doubleData  KEYWORD2

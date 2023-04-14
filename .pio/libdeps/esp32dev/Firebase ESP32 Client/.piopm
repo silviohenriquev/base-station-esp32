@@ -1,1 +1,1 @@
-{"type": "library", "name": "Firebase ESP32 Client", "version": "3.15.5", "spec": {"owner": "mobizt", "id": 6217, "name": "Firebase ESP32 Client", "requirements": null, "url": null}}
+{"type": "library", "name": "Firebase ESP32 Client", "version": "4.3.9", "spec": {"owner": "mobizt", "id": 6217, "name": "Firebase ESP32 Client", "requirements": null, "uri": null}}

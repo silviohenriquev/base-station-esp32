@@ -1,10 +1,15 @@
+#include "Firebase_Client_Version.h"
+#if !FIREBASE_CLIENT_VERSION_CHECK(40309)
+#error "Mixed versions compilation."
+#endif
+
 /**
- * Firebase TCP Client v1.1.19
+ * Firebase TCP Client v1.1.24
  *
- * Created February 20, 2022
+ * Created March 5, 2022
  *
  * The MIT License (MIT)
- * Copyright (c) 2022 K. Suwatchai (Mobizt)
+ * Copyright (c) 2023 K. Suwatchai (Mobizt)
  *
  *
  * Copyright (c) 2015 Markus Sattler. All rights reserved.
@@ -31,9 +36,12 @@
 #ifndef FB_TCP_Client_H
 #define FB_TCP_Client_H
 
+#include <Arduino.h>
+#include "mbfs/MB_MCU.h"
+
 #if defined(ESP32) && !defined(ENABLE_EXTERNAL_CLIENT)
 
-#include "FB_Net.h"
+#include "FB_Network.h"
 #include "FB_Error.h"
 #include "mbfs/MB_FS.h"
 #include "./wcs/base/FB_TCP_Client_Base.h"
@@ -103,7 +111,6 @@ public:
   bool connect();
 
 private:
-
   std::unique_ptr<FB_WCS> wcs = std::unique_ptr<FB_WCS>(new FB_WCS());
   char *cert = NULL;
 
